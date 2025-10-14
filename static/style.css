@@ -1,0 +1,111 @@
+/* Base styles for the Coffee Brew Restaurant */
+    body {
+        font-family: Arial, sans-serif;
+        color: #333;
+        background-color: #f4f4f2;
+        margin: 0;
+        padding: 0;
+    }
+    header {
+        background-color: #3e2723;  /* Dark brown */
+        color: #fff;
+        padding: 10px;
+        text-align: center;
+        border-bottom: 3px solid #1a237e; /* Dark blue accent */
+    }
+        header h1 {
+            margin: 0;
+            font-size: 2.1em;
+            font-family: 'Georgia', serif;
+        }
+        nav {
+            display: flex;
+            justify-content: center;
+            background-color: #c69e78;  /* Ivory Cream */
+            padding: 7px 0;
+        }
+        nav a {
+            color: #fff;
+            padding: 7px 14px;
+            text-decoration: none;
+            font-size: 1.1em;
+        }
+        nav a:hover {
+            background-color: #b88656; /* Even darker Ivory Cream on hover */
+            border-radius: 5px;
+        }
+        main {
+            padding: 17px;
+            max-width: 417px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        footer {
+            background-color: #3e2723; /* Dark brown */
+            color: #fff;
+            text-align: center;
+            padding: 2px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        h1 {
+            display: flex;
+            justify-content: center;
+            text-align: center;
+        }
+
+        form {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        input[type="text"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+            background-color: ##c69e78;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        textarea {
+            resize: vertical;
+        }
+        input[type="submit"] {
+            background-color: #c69e78;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        input[type="submit"]:hover {
+            background-color: #b88656;
+        }
+        .error-message {
+            color: red;
+            font-size: 14px;
+            margin-top: 5px;
+        }
