@@ -1,14 +1,52 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from flask_sqlalchemy import SQLAlchemy
-from flask_bcrypt import Bcrypt
-from flask_login import UserMixin, LoginManager, login_user, logout_user, login_required
+##################################################
+############### PYTHON PACKAGES ##################
+##################################################
+
+import encodings
+from decimal import Decimal
 import os
 import os.path as op
-import logging
+from datetime import datetime as dt
+from sqlalchemy import Column, Integer, DateTime
+from flask import Flask, render_template, send_from_directory, url_for, redirect, request
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.event import listens_for
+from markupsafe import Markup
+from flask_admin import Admin, form
+from flask_admin.form import rules
+from flask_admin.contrib import sqla, rediscli
+from flask import session as login_session
+from flask_login import UserMixin, LoginManager, login_user, logout_user, login_required
+from flask_bcrypt import Bcrypt
+from sqlalchemy import ForeignKey
+from sqlalchemy import Integer
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import relationship
-from decimal import Decimal
+from sqlalchemy import select
+import operator
+from werkzeug.utils import secure_filename
+import os
+from flask import Flask, flash, request, redirect, url_for
+from werkzeug.utils import secure_filename
+from sqlalchemy import update
+from wtforms import PasswordField
+#new imports
+from sqlalchemy.ext.hybrid import hybrid_property
+
+from jinja2 import TemplateNotFound  # Import TemplateNotFound exception
+import logging
+
+#for xml files
+from xml.etree.ElementTree import Element, SubElement, tostring, ElementTree
+from datetime import datetime as dt
+
+##################################################
+##################################################
+##################################################
 
 # setting up admin
 admin = Admin()
@@ -59,7 +97,7 @@ def internal_error(e):
     return render_template('500.html'), 500
 
 
-"""
+
 # creating relivant tables
 class MenuItems(db.Model):
     __tablename__ = "beverage"
@@ -69,7 +107,7 @@ class MenuItems(db.Model):
     beverage_type = db.Column(db.String(30), nullable=False)
     file_image = db.Column(db.String(30), nullable=False)
 
-    cartitems = relationship("CartItem", back_populates="food")
+    cartitems = relationship("CartItem", back_populates="beverage")
 
     def __repr__(self):
         return f'<food {self.food_name}'
@@ -85,33 +123,42 @@ class CartItem(db.Model):
 
     def __repr__(self):
         return f'<cartitem{self.cart_name} (x{self.quantity})>'
-"""
-class user(db.Model, UserMixin):
+
+class User(db.Model, UserMixin):
     __tablename__ = "user"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
+    username = db.Column(db.String(50))
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
 
-    def __repr__(self):
-        return f'<user {self.username}>'
+def __repr__(self):
+    return f'<User {self.username}>'
 
-
-class customer (db.Model, UserMixin):
+class Customer(db.Model, UserMixin):
     __tablename__ = "customer"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(20), unique=True, nullable=False)
+    password = db.Column(db.String(80), nullable=False)
+    email = db.Column(db.String(80), nullable=False)
 
-    def __repr__(self):
-        return f'<customer {self.username}>'
+def __str__(self):
+    return self.username
+
+class Message(db.Model, UserMixin):
+    __tablename__ = "message"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), nullable=False)
+    message = db.Column(db.String(80), nullable=False)
+
+
+def __str__(self):
+    return f"{self.name}: {self.message}"
 
 
 # setting up user login
 @login_manager.user_loader
 def load_user(user_id):
-    return user.query.get(int(user_id))
+    return User.query.get(int(user_id))
 
 
 # @app.before_request
@@ -149,8 +196,20 @@ def welcome():
     return render_template('welcome.html', subtitle="Order as a guest")
 
 
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        customer = Customer.query.filter_by(username=username).first()
+        if customer and bcrypt.check_password_hash(customer.password, password):
+            #db.session["username"] = username
+            login_session['username'] = username
+            login_user(customer)
+            return redirect(url_for('welcome'))
+        else:
+            flash("Invalid username or password")
+            return redirect(url_for('login'))
     return render_template('login.html', subtitle="Login")
 
 
@@ -160,23 +219,27 @@ def register():
         username = request.form['username']
         email = request.form['email']
         password = request.form['password']
+        terms = request.form['terms']
         hashed_password = bcrypt.generate_password_hash(
             password).decode('utf-8')
 
-        checkemail = customer.query.filter(customer.email == email).first()
-        checkuser = customer.query.filter(customer.username == username).first()
+        checkemail = Customer.query.filter(Customer.email == email).first()
+        checkuser = Customer.query.filter(Customer.username == username).first()
+
+        if not terms:
+            flash("Please accept our terms to continue")
 
         if checkemail != None:
             flash("Please register using a different email.")
 
-            return render_template("register.html")
+            return render_template("register.html", subtitle="Register")
         elif checkuser is not None:
             flash("Username already exists !")
 
             return render_template("register.html")
 
         else:
-            new_customer = customer(username=username, email=email, password=hashed_password)
+            new_customer = Customer(username=username, email=email, password=hashed_password)
             db.session.add(new_customer)
             db.session.commit()
         return redirect(url_for('login'))
@@ -186,6 +249,17 @@ def register():
 @app.route('/table_booking')
 def table_booking():
     return render_template('table_booking.html', subtitle="Book a table")
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    if request.method == 'POST':
+        name = request.form['name']
+        message = request.form['message']
+        new_message = Message(name=name, message=message)
+        db.session.add(new_message)
+        db.session.commit()
+
+    return render_template('contact.html', subtitle="Contact us!")
 
 
 

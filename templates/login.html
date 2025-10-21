@@ -1,6 +1,31 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h1>Login to your account</h1>
+ <h1>Login</h1>
+    <form method="post">
+        <p>
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" placeholder="Enter your username" />
+
+        </p>
+        <p>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" placeholder="Enter your password" />
+
+        </p>
+        <p>
+            <input type="submit" value="Send" name="Submit" />
+
+        </p>
+<div class="error-message">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        {% for message in messages %}
+            <span class="flash-error">{{ message }}</span>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
 
 {% endblock %}
