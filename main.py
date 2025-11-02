@@ -53,7 +53,8 @@ admin = Admin()
 app = Flask(__name__, static_folder='static')
 
 # configuring the app, bcrypt and admin
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 login_manager = LoginManager(app)
@@ -160,6 +161,86 @@ def __str__(self):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+class Order(db.Model):
+    __tablename__ = "order"
+    order_no = db.Column(db.Integer, primary_key=True, autoincrement=True)  # Unique primary key
+    food_id = db.Column(db.Integer, nullable=False)  # Correcting syntax for food_id
+    quantity = db.Column(db.Integer, nullable=False)
+    pay_order_no = db.Column(db.Integer, db.ForeignKey('pay.order_no'), nullable=True)  # Foreign key to Pay table
+
+    pay_reference = db.relationship("Pay", back_populates="orders")  # Define relationship back to Pay
+
+    def __repr__(self):
+        return f'<Order {self.order_no}>'
+
+
+class Pay(db.Model):
+    __tablename__ = "pay"
+    pay_no = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    order_no = db.Column(db.Integer, unique=True)  # Foreign key target column in Pay
+
+    total_price = db.Column(db.Numeric(10, 2))
+    cust_name = db.Column(db.String(30), nullable=False)
+    cust_address = db.Column(db.String(30), nullable=False)
+    cust_postcode = db.Column(db.String(30), nullable=False)
+    cust_email = db.Column(db.String(30), nullable=False)
+    cust_cardno = db.Column(db.String(30), nullable=False)
+    card_expirydate = db.Column(db.String(30), nullable=False)
+    card_cvv = db.Column(db.String(30), nullable=False)
+    trans_option = db.Column(db.String(30))
+    pay_datetime = db.Column(db.DateTime, default=dt.now)
+
+    orders = db.relationship("Order", back_populates="pay_reference")  # Relationship to Order
+
+
+
+class Rest(db.Model):
+    __tablename__ = 'rest'
+    rest_id = db.Column(db.Integer(), autoincrement=True, primary_key=True)
+    rest_name = db.Column(db.String(80))
+    address = db.Column(db.String(70))
+    stars = db.Column(db.Integer())
+    image = db.Column(db.String(500))
+
+    # One-to-many relationship with Table
+    #tables = db.relationship('Table', back_populates='restaurant', cascade="all, delete-orphan")
+    resttables = db.relationship("Table", back_populates="rest")
+
+class Table(db.Model):
+    __tablename__ = 'table'
+    table_id = db.Column(db.String(20), primary_key=True)
+    rest_id = db.Column(db.Integer, db.ForeignKey('rest.rest_id'))
+    table_type = db.Column(db.String(20))
+    reserve_fee = db.Column(db.Numeric(10, 2))
+    max_occupants = db.Column(db.Integer())
+    available = db.Column(db.Boolean)
+
+    # Back reference to Rest
+    #restaurant = db.relationship('Rest', back_populates='tables')
+    #rest_id = db.Column(db.ForeignKey("restaurant.id"), nullable=False)
+    rest = db.relationship("Rest", back_populates="resttables")
+    bookings = db.relationship("Bookings", back_populates="table")  # Relationship to Bookings
+
+class Bookings(db.Model):
+    __tablename__ = 'bookings'
+    book_no = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    table_id = db.Column(db.String(20), db.ForeignKey('table.table_id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    book_date_time = db.Column(db.String(20))
+    total_price = db.Column(db.Numeric(10,2))
+    table = db.relationship("Table", back_populates="bookings")  # relationship
+
+#class RestView(ModelView):
+    can_delete = False
+    form_columns = ["rest_name", "address", "stars", "image"]
+    column_list = ["rest_name", "address", "stars", "image"]
+
+#class TableView(ModelView):
+    can_delete = False
+    form_columns = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
+    column_list = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
+
+
 
 # @app.before_request
 # def setup():
@@ -246,9 +327,50 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/table_booking')
+@app.route('/table_booking', methods=['GET'])
 def table_booking():
     return render_template('table_booking.html', subtitle="Book a table")
+
+@app.route('/book_table', methods=['POST'])
+def book_table():
+    if request.method == 'POST':
+        table_id = "m12"
+        user_id = login_session.get('user_id')
+        people = request.form.get('people')
+        date = request.form.get('date')
+        time = request.form.get('time')
+        datetime_str = f"{date} {time}"
+
+        table = db.session.query(Table).filter_by(table_id=table_id).first()
+
+        total_price = table.reserve_fee * Decimal(people)
+
+        new_booking = Bookings(
+            table_id=table_id,
+            user_id=user_id,
+            book_date_time=datetime_str,
+            total_price=total_price
+        )
+        db.session.add(new_booking)
+        db.session.commit()
+
+        last_pay = db.session.query(Pay).order_by(Pay.order_no.desc()).first()
+        # Ensure last_pay.order_no defaults to 0 if it's None
+        order_no = (last_pay.order_no or 0) + 1 if last_pay else 1
+        # order_no = new_order_no
+
+        print("Redirecting to payment_table with:", total_price, order_no)
+
+        print(type(total_price))
+        print(type(order_no))
+
+        print(total_price)
+        print(order_no)
+        order_no = 7
+        print(order_no)
+
+    return redirect(url_for('payment_table', total_price=total_price, order_no=order_no))
+
 
 @app.route('/contact', methods=['GET', 'POST'])
 def contact():
