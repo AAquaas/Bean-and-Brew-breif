@@ -53,8 +53,8 @@ admin = Admin()
 app = Flask(__name__, static_folder='static')
 
 # configuring the app, bcrypt and admin
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 login_manager = LoginManager(app)
@@ -230,12 +230,12 @@ class Bookings(db.Model):
     total_price = db.Column(db.Numeric(10,2))
     table = db.relationship("Table", back_populates="bookings")  # relationship
 
-#class RestView(ModelView):
+class RestView(ModelView):
     can_delete = False
     form_columns = ["rest_name", "address", "stars", "image"]
     column_list = ["rest_name", "address", "stars", "image"]
 
-#class TableView(ModelView):
+class TableView(ModelView):
     can_delete = False
     form_columns = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
     column_list = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
@@ -339,6 +339,7 @@ def book_table():
         people = request.form.get('people')
         date = request.form.get('date')
         time = request.form.get('time')
+        location = request.form.get('location')
         datetime_str = f"{date} {time}"
 
         table = db.session.query(Table).filter_by(table_id=table_id).first()
