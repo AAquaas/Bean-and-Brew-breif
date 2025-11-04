@@ -100,12 +100,12 @@ def internal_error(e):
 
 
 # creating relivant tables
-class MenuItems(db.Model):
-    __tablename__ = "beverage"
-    beverage_id = db.Column(db.Integer, primary_key=True)
-    beverage_name = db.Column(db.Unicode(64), nullable=False)
-    beverage_price = db.Column(db.Numeric(10, 2), nullable=False)
-    beverage_type = db.Column(db.String(30), nullable=False)
+class Menu(db.Model):
+    __tablename__ = "menu"
+    menu_id = db.Column(db.Integer, primary_key=True)
+    menu_name = db.Column(db.Unicode(64), nullable=False)
+    menu_price = db.Column(db.Numeric(10, 2), nullable=False)
+    menu_type = db.Column(db.String(30), nullable=False)
     file_image = db.Column(db.String(30), nullable=False)
 
     cartitems = relationship("CartItem", back_populates="beverage")
@@ -119,8 +119,8 @@ class CartItem(db.Model):
     cart_name = db.Column(db.String(20), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
 
-    beverage_id = db.Column(db.Integer, db.ForeignKey('beverage.beverage_id'), nullable=False)
-    beverage = relationship("MenuItems", back_populates="cartitems")
+    menu_id = db.Column(db.Integer, db.ForeignKey('beverage.beverage_id'), nullable=False)
+    menu = relationship("Menu", back_populates="cartitems")
 
     def __repr__(self):
         return f'<cartitem{self.cart_name} (x{self.quantity})>'
@@ -240,32 +240,6 @@ class TableView(ModelView):
     form_columns = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
     column_list = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
 
-
-
-# @app.before_request
-# def setup():
-#
-#     db.create_all()
-#     # adding menu items (drinks)
-#     black_coffee = beverage(beverage_name="Black Coffee", beverage_price=5.00, beverage_type="Drink", file_image="black_coffee.jpg")
-#     white_coffee = beverage(beverage_name="White Coffee", beverage_price=5.00, beverage_type="Drink", file_image="white_coffee.jpg")
-#     cappuccino = beverage(beverage_name="Cappuccino", beverage_price=5.00, beverage_type="Drink", file_image="cappuccino.jpg")
-#     latte = beverage(beverage_name="Latte", beverage_price=6.00, beverage_type="Drink", file_image="latte.jpg")
-#     expresso = beverage(beverage_name="Expresso", beverage_price=3.00, beverage_type="Drink", file_image="expresso.jpg")
-#     tea = beverage(beverage_name="Tea", beverage_price=5.00, beverage_type="Drink", file_image="tea.jpg")
-#     hot_chocolate = beverage(beverage_name="Hot Chocolate", beverage_price=4.50, beverage_type="Drink", file_image="hot_chocolate.jpg")
-#     # adding menu items (food)
-#     vanilla = beverage(beverage_name="Vanilla Cake", beverage_price=2.50, beverage_type="Food", file_image="vanilla_cake.jpg")
-#     chocolate_cake = beverage(beverage_name="Chocolate Cake", beverage_price=2.50, beverage_type="Food", file_image="carrot_cake.jpg")
-#     carrot_cake = beverage(beverage_name="Carrot Cake", beverage_price=2.50, beverage_type="Food", file_image="chocolate_cake.jpg")
-#     scones = beverage(beverage_name="scones", beverage_price=3.50, beverage_type="Food", file_image="scones.jpg")
-#     cookie = beverage(beverage_name="Cookie", beverage_price=2.00, beverage_type="Food", file_image="cookie.jpg")
-#     brownie = beverage(beverage_name="Brownie", beverage_price=2.00, beverage_type="Food", file_image="brownie.jpg")
-
-
-# main website hosting
-# subtitle is the name at the top of the tab
-
 @app.route('/')
 @app.route('/home')
 def home():
@@ -274,7 +248,45 @@ def home():
 
 @app.route('/welcome')
 def welcome():
-    return render_template('welcome.html', subtitle="Order as a guest")
+    if "username" in login_session:
+        username = login_session['username']
+        food = db.session.query(Menu).all()
+        #path=food.file_image
+        return render_template('welcome.html', food=food)
+    else:
+        return redirect(url_for('login'), subtitle="Order as a guest")
+
+    @app.route('/addfood', methods=['GET', 'POST'])
+    def addfood():
+        if request.method == 'POST':
+            food_name = request.form['food_name']
+            food_price = float(request.form['food_price'])
+            food_type = request.form['food_type']
+            if 'file1' not in request.files:
+                return 'there is no file1 in form!'
+            file1 = request.files['file1']
+            path = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
+            file1.save(path)
+            # comment the following 2 lines
+            # return path
+            # return 'ok'
+            new_food = Menu(food_name=food_name, food_price=food_price, food_type=food_type, file_image=path)
+            db.session.add(new_food)
+            db.session.commit()
+            return redirect(url_for('welcome'))
+        return render_template('createfood.html')
+
+    # @app.route('/delete_food/<int:food_id>', methods=['POST'])
+    # def delete_food(food_id):
+    #     # First, delete all related cart items
+    #     CartItem.query.filter_by(food_id=food_id).delete()
+    #
+    #     # Query the food item by ID
+    #     food_item = Food.query.get_or_404(food_id)
+    #
+    #     # Remove the food item from the database
+    #     db.session.delete(food_item)
+    #     db.session.commit()
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -331,10 +343,22 @@ def register():
 def table_booking():
     return render_template('table_booking.html', subtitle="Book a table")
 
+@app.route('/logout')
+def logout():
+    # db.session.pop("username", None)
+    # db.session.query(CartItem).delete()
+    # db.session.commit()
+
+    del login_session['username']
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/book_table', methods=['POST'])
 def book_table():
+    reserve_fee = 5
     if request.method == 'POST':
         table_id = "m12"
+        #reserve_fee = 5
         user_id = login_session.get('user_id')
         people = request.form.get('people')
         date = request.form.get('date')
@@ -344,7 +368,8 @@ def book_table():
 
         table = db.session.query(Table).filter_by(table_id=table_id).first()
 
-        total_price = table.reserve_fee * Decimal(people)
+        total_price = reserve_fee * Decimal(people)
+        print("bill is:", total_price)
 
         new_booking = Bookings(
             table_id=table_id,
@@ -355,22 +380,22 @@ def book_table():
         db.session.add(new_booking)
         db.session.commit()
 
-        last_pay = db.session.query(Pay).order_by(Pay.order_no.desc()).first()
-        # Ensure last_pay.order_no defaults to 0 if it's None
-        order_no = (last_pay.order_no or 0) + 1 if last_pay else 1
-        # order_no = new_order_no
 
-        print("Redirecting to payment_table with:", total_price, order_no)
+        # order_no = new_order_no
+        # last_pay = db.session.query(Pay).order_by(Pay.order_no.desc()).first()
+        # new_order_no = last_pay.order_no + 1 if last_pay else 1
+
+        print("Redirecting to payment_table with:", total_price)
 
         print(type(total_price))
-        print(type(order_no))
+
 
         print(total_price)
-        print(order_no)
-        order_no = 7
-        print(order_no)
 
-    return redirect(url_for('payment_table', total_price=total_price, order_no=order_no))
+        # order_no = 7
+
+
+    return redirect(url_for('payment_table', total_price=total_price))
 
 
 @app.route('/contact', methods=['GET', 'POST'])
@@ -383,6 +408,57 @@ def contact():
         db.session.commit()
 
     return render_template('contact.html', subtitle="Contact us!")
+
+@app.route('/payment_table/<float:total_price>', methods=['GET', 'POST'])
+def payment_table(total_price):
+
+    last_pay = db.session.query(Pay).order_by(Pay.order_no.desc()).first()
+    # Ensure last_pay.order_no defaults to 0 if it's None
+    new_order_no = last_pay.order_no + 1 + 1 if last_pay else 1
+    order_no = new_order_no
+
+    if request.method == 'POST':
+        #if "username" in login_session:
+
+        print("this code now!!!:", total_price)
+
+        print(type(total_price))
+
+        cust_name = request.form.get('cardname')
+        cust_address = request.form.get('address')
+        cust_postcode = request.form.get('postcode')
+        cust_email = request.form.get('email')
+        cust_cardno = request.form.get('cardnumber')
+        card_expirydate = request.form.get('expdate')
+        card_cvv = int(request.form.get('cvv'))
+        trans_option = request.form.get("trans_option")
+
+
+
+        new_pay = Pay(
+            order_no=order_no,
+            total_price=total_price,
+            cust_name=cust_name,
+            cust_address=cust_address,
+            cust_postcode=cust_postcode,
+            cust_email=cust_email,
+            cust_cardno=cust_cardno,
+            card_expirydate=card_expirydate,
+            card_cvv=card_cvv,
+            trans_option=trans_option
+        )
+
+        db.session.add(new_pay)
+        db.session.commit()
+
+
+        recentp = db.session.query(Pay).order_by(Pay.pay_no.desc()).first()
+        return render_template("receipt.html", recentp=recentp)
+        print("im here")
+
+    #total_price = request.args.get('total_price', '0.0')
+    #order_no = request.args.get('order_no')
+    return render_template("checkout_table.html", total_price=total_price, order_no=order_no, subtitle="Checkout")
 
 
 
