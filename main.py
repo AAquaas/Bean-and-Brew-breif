@@ -1,3 +1,4 @@
+
 ##################################################
 ############### PYTHON PACKAGES ##################
 ##################################################
@@ -53,8 +54,8 @@ admin = Admin()
 app = Flask(__name__, static_folder='static')
 
 # configuring the app, bcrypt and admin
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 login_manager = LoginManager(app)
@@ -108,7 +109,7 @@ class Menu(db.Model):
     menu_type = db.Column(db.String(30), nullable=False)
     file_image = db.Column(db.String(30), nullable=False)
 
-    cartitems = relationship("CartItem", back_populates="beverage")
+    cartitems = relationship("CartItem", back_populates="menu")
 
     def __repr__(self):
         return f'<food {self.food_name}'
@@ -119,7 +120,10 @@ class CartItem(db.Model):
     cart_name = db.Column(db.String(20), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
 
-    menu_id = db.Column(db.Integer, db.ForeignKey('beverage.beverage_id'), nullable=False)
+    food_id = db.Column(db.Integer, db.ForeignKey('food.food_id'), nullable=False)
+    food = relationship("Food", back_populates="cartitems")
+
+    menu_id = db.Column(db.Integer, db.ForeignKey('menu.menu_id'), nullable=False)
     menu = relationship("Menu", back_populates="cartitems")
 
     def __repr__(self):
@@ -240,6 +244,21 @@ class TableView(ModelView):
     form_columns = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
     column_list = ["table_id", "rest_id", "table_type", "reserve_fee", "max_occupants", "available"]
 
+class Food(db.Model):
+    __tablename__ = "food"
+    food_id = db.Column(db.Integer, primary_key=True)
+    food_name = db.Column(db.Unicode(64))
+    food_price = db.Column(db.Numeric(10,2), nullable=False)
+    food_type = db.Column(db.String(30), nullable=False)
+    file_image = db.Column(db.String(30), nullable=False)
+    cartitems = relationship("CartItem", back_populates="food")
+
+def __unicode__(self):
+    return f'<Food {self.food_name}>'
+
+@login_manager.user_loader
+def load_food(food_id):
+    return Food.query.get(int(food_id))
 @app.route('/')
 @app.route('/home')
 def home():
@@ -250,43 +269,53 @@ def home():
 def welcome():
     if "username" in login_session:
         username = login_session['username']
-        food = db.session.query(Menu).all()
+        food = db.session.query(Food).all()
         #path=food.file_image
-        return render_template('welcome.html', food=food)
+        return render_template('welcome.html', food=food, subtitle="Order as a guest")
     else:
-        return redirect(url_for('login'), subtitle="Order as a guest")
+        return redirect(url_for('login'))
 
-    @app.route('/addfood', methods=['GET', 'POST'])
-    def addfood():
-        if request.method == 'POST':
-            food_name = request.form['food_name']
-            food_price = float(request.form['food_price'])
-            food_type = request.form['food_type']
-            if 'file1' not in request.files:
-                return 'there is no file1 in form!'
-            file1 = request.files['file1']
-            path = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
-            file1.save(path)
-            # comment the following 2 lines
-            # return path
-            # return 'ok'
-            new_food = Menu(food_name=food_name, food_price=food_price, food_type=food_type, file_image=path)
-            db.session.add(new_food)
-            db.session.commit()
-            return redirect(url_for('welcome'))
-        return render_template('createfood.html')
+@app.route('/addfood', methods=['GET', 'POST'])
+def addfood():
+    if request.method == 'POST':
+        food_name = request.form['food_name']
+        food_price = float(request.form['food_price'])
+        food_type = request.form['food_type']
+        if 'file1' not in request.files:
+            return 'there is no file1 in form!'
+        file1 = request.files['file1']
+        # filename = secure_filename(file1.filename)
+        path = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
+        file1.save(path)
+        # comment the following 2 lines
+        # return path
+        # return 'ok'
+        new_food = Food(food_name=food_name, food_price=food_price, food_type=food_type, file_image=path)
+        db.session.add(new_food)
+        db.session.commit()
+        return redirect(url_for('welcome'))
+    return render_template('createfood.html')
 
-    # @app.route('/delete_food/<int:food_id>', methods=['POST'])
-    # def delete_food(food_id):
-    #     # First, delete all related cart items
-    #     CartItem.query.filter_by(food_id=food_id).delete()
-    #
-    #     # Query the food item by ID
-    #     food_item = Food.query.get_or_404(food_id)
-    #
-    #     # Remove the food item from the database
-    #     db.session.delete(food_item)
-    #     db.session.commit()
+@app.route('/delete_food/<int:food_id>', methods=['POST'])
+def delete_food(food_id):
+    # First, delete all related cart items
+    CartItem.query.filter_by(food_id=food_id).delete()
+
+    # Query the food item by ID
+    food_item = Food.query.get_or_404(food_id)
+
+    # Remove the food item from the database
+    db.session.delete(food_item)
+    db.session.commit()
+
+@app.route('/menu', methods=['GET', 'POST'])
+def menu():
+    food = db.session.query(Food).all()
+    selected_menu = request.args.get('type')
+    food = Food.query.filter(Food.food_name == selected_menu).first()
+    price = food.food_price
+    fid = food.food_id
+    return render_template("menu.html", title='Menu Details', food_name=selected_menu, food_price=price, food_id=fid)
 
 
 @app.route('/login', methods=['GET', 'POST'])
