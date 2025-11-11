@@ -7,6 +7,7 @@ import encodings
 from decimal import Decimal
 import os
 import os.path as op
+
 from datetime import datetime as dt
 from sqlalchemy import Column, Integer, DateTime
 from flask import Flask, render_template, send_from_directory, url_for, redirect, request
@@ -16,7 +17,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.event import listens_for
 from markupsafe import Markup
 from flask_admin import Admin, form
-from flask_admin.form import rules
+from flask_admin.form import rules, ImageUploadField
 from flask_admin.contrib import sqla, rediscli
 from flask import session as login_session
 from flask_login import UserMixin, LoginManager, login_user, logout_user, login_required
@@ -255,6 +256,39 @@ class Food(db.Model):
 
 def __unicode__(self):
     return f'<Food {self.food_name}>'
+
+
+import os
+from flask_admin.form import ImageUploadField
+
+import os
+from flask_admin.form import ImageUploadField
+from flask_admin.contrib.sqla import ModelView
+import uuid
+
+def rename_file(obj, file_data):
+    ext = os.path.splitext(file_data.filename)[1]
+    return f"{uuid.uuid4().hex}{ext}"
+
+class FoodAdmin(ModelView):
+    column_list = ('food_name', 'food_price', 'food_type', 'file_image')
+    form_columns = ('food_name', 'food_price', 'food_type', 'file_image')
+    column_searchable_list = ('food_name', 'food_type')
+    column_filters = ('food_type', 'food_price')
+
+    form_extra_fields = {
+        'file_image': ImageUploadField(
+            'Image',
+            base_path=os.path.join(os.path.dirname(__file__), 'static'),  # static folder
+            url_relative_path='',  # empty because base_path is already static
+            allowed_extensions=['jpg', 'jpeg', 'png', 'gif'],
+            namegen=rename_file,
+            allow_overwrite=False
+        )
+    }
+
+admin.add_view(FoodAdmin(Food, db.session, name="Food Items"))
+
 
 @login_manager.user_loader
 def load_food(food_id):
