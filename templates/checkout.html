@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="header">
+        <h1>Checkout</h1>
+    </div>
+    <br>
+
+    <form action="{{ url_for('payment') }}" method="POST" style="max-width: 500px; margin: auto;">
+        <label for="trans_option" style="display: block; margin-bottom: 5px;">Collect or Delivery?</label>
+        <select id="trans_option" name="trans_option" style="width: 100%; padding: 8px; margin-bottom: 20px;">
+            <option value="collect">Collect</option>
+            <option value="delivery">Delivery</option>
+        </select>
+
+        <!-- Display cart items -->
+        {% set totals = [] %}
+        {% for cartitem in cartitems %}
+            <div style="margin-bottom: 10px;">
+                <p>Order: {{ cartitem['food_name'] }}</p>
+                <p>Price: £{{ '%0.2f' | format(cartitem['food_price']) }}</p>
+                <p>Quantity: {{ cartitem['quantity'] }}</p>
+                {% set _ = totals.append(cartitem['food_price'] * cartitem['quantity']) %}
+            </div>
+        {% endfor %}
+
+        <!-- Display total amount -->
+        <p>Total Amount: £{{ '%0.2f' | format(totals | sum) }}</p>
+
+        <!-- Billing and Payment Details -->
+        <div style="margin-top: 20px;">
+            <h4>Billing Address</h4>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="fname" style="flex: 1; text-align: right; margin-right: 10px;">Full Name</label>
+                <input type="text" id="fname" name="firstname" placeholder="John M. Doe" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="email" style="flex: 1; text-align: right; margin-right: 10px;">Email</label>
+                <input type="text" id="email" name="email" placeholder="john@example.com" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="adr" style="flex: 1; text-align: right; margin-right: 10px;">Address</label>
+                <input type="text" id="adr" name="address" placeholder="542 W. 15th Street" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <label for="postcode" style="flex: 1; text-align: right; margin-right: 10px;">Postal Code</label>
+                <input type="text" id="postcode" name="postcode" placeholder="SN33MC" style="flex: 2; padding: 8px;">
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h4>Payment Details</h4>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="cname" style="flex: 1; text-align: right; margin-right: 10px;">Name on Card</label>
+                <input type="text" id="cname" name="cardname" placeholder="Susan Smith" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="cardno" style="flex: 1; text-align: right; margin-right: 10px;">Credit Card Number</label>
+                <input type="text" id="cardno" name="cardnumber" placeholder="1111-2222-3333-4444" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <label for="expdate" style="flex: 1; text-align: right; margin-right: 10px;">Exp Date</label>
+                <input type="text" id="expdate" name="expdate" placeholder="02/27" style="flex: 2; padding: 8px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <label for="cvv" style="flex: 1; text-align: right; margin-right: 10px;">CVV</label>
+                <input type="text" id="cvv" name="cvv" placeholder="752" style="flex: 2; padding: 8px;">
+            </div>
+        </div>
+
+        <p><input type="submit" value="Checkout" style="width: 100%; padding: 10px; background-color: #333; color: #fff; border: none; cursor: pointer;"></p>
+    </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelector("form").addEventListener("submit", function (event) {
+        let isValid = true;
+
+        // Validate card number using Luhn algorithm
+        const cardNumber = document.getElementById("cardno").value.replace(/\D/g, '');
+        if (!isValidCardNumber(cardNumber)) {
+            alert("Please enter a valid credit card number.");
+            isValid = false;
+        }
+
+        // Validate CVV (3 or 4 digits)
+        const cvv = document.getElementById("cvv").value;
+        if (!/^\d{3,4}$/.test(cvv)) {
+            alert("Please enter a valid 3- or 4-digit CVV.");
+            isValid = false;
+        }
+
+        // Validate expiration date (MM/YY)
+        const expDate = document.getElementById("expdate").value;
+        if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expDate)) {
+            alert("Please enter a valid expiration date in MM/YY format.");
+            isValid = false;
+        } else {
+            const [month, year] = expDate.split("/").map(Number);
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1;
+            const currentYear = currentDate.getFullYear() % 100;
+            if (year < currentYear || (year === currentYear && month < currentMonth)) {
+                alert("The card has expired.");
+                isValid = false;
+            }
+        }
+
+        // Validate email
+        const email = document.getElementById("email").value;
+        if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+            alert("Please enter a valid email address.");
+            isValid = false;
+        }
+
+        // Validate required fields
+        ["fname", "adr", "postcode"].forEach(function (fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                alert(`Please fill out the ${field.previousElementSibling.textContent.trim()} field.`);
+                isValid = false;
+            }
+        });
+
+        if (!isValid) {
+            event.preventDefault(); // Stop submission
+        }
+    });
+
+    // Luhn Algorithm for card number validation
+    function isValidCardNumber(number) {
+        let sum = 0;
+        let shouldDouble = false;
+
+        // Process digits from right to left
+        for (let i = number.length - 1; i >= 0; i--) {
+            let digit = parseInt(number.charAt(i), 10);
+
+            if (shouldDouble) {
+                digit *= 2;
+                if (digit > 9) digit -= 9;
+            }
+
+            sum += digit;
+            shouldDouble = !shouldDouble;
+        }
+
+        return sum % 10 === 0;
+    }
+</script>
+{% endblock %}

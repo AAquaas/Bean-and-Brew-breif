@@ -54,8 +54,8 @@ admin = Admin()
 app = Flask(__name__, static_folder='static')
 
 # configuring the app, bcrypt and admin
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\753503\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #college pc
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\ryanp\\OneDrive\\Desktop\\DB.Browser.for.SQLite-v3.13.1-win64\\coffee_orders.db' #home pc
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 login_manager = LoginManager(app)
@@ -120,10 +120,10 @@ class CartItem(db.Model):
     cart_name = db.Column(db.String(20), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
 
-    food_id = db.Column(db.Integer, db.ForeignKey('food.food_id'), nullable=False)
+    food_id = db.Column(db.Integer, db.ForeignKey('food.food_id'), nullable=True)
     food = relationship("Food", back_populates="cartitems")
 
-    menu_id = db.Column(db.Integer, db.ForeignKey('menu.menu_id'), nullable=False)
+    menu_id = db.Column(db.Integer, db.ForeignKey('menu.menu_id'), nullable=True)
     menu = relationship("Menu", back_populates="cartitems")
 
     def __repr__(self):
@@ -308,6 +308,93 @@ def delete_food(food_id):
     db.session.delete(food_item)
     db.session.commit()
 
+@app.route('/checkout')
+def checkout():
+    # Query to join CartItem with Food and retrieve necessary fields
+    cartitems = db.session.query(
+        CartItem.quantity,
+        Food.food_name,
+        Food.food_price
+    ).join(Food, CartItem.food_id == Food.food_id).all()
+
+
+    return render_template('checkout.html', cartitems=cartitems)
+
+@app.route('/payment', methods=['GET', 'POST'])
+def payment():
+    if request.method == 'POST':
+        if "username" in login_session:
+            usern = login_session['username']
+            # Retrieve the latest order_no from the Pay table
+            last_pay = db.session.query(Pay).order_by(Pay.order_no.desc()).first()
+            new_order_no = last_pay.order_no + 1 if last_pay else 1
+
+            orderno = new_order_no
+
+            total_price = Decimal('0.0')
+            cartitems = db.session.query(CartItem).all()
+            for cartitem in cartitems:
+                total_price += Decimal(cartitem.food.food_price * cartitem.quantity)
+
+
+
+            trans_option = request.form.get("trans_option")
+            cust_name = request.form.get('cardname')
+            cust_address = request.form.get('address')
+            cust_postcode = request.form.get('postcode')
+            cust_email = request.form.get('email')
+            cust_cardno = request.form.get('cardnumber')
+            card_expirydate = request.form.get('expdate')
+            card_cvv = int(request.form.get('cvv'))
+
+            new_pay = Pay(
+                order_no=orderno,
+                total_price=Decimal(total_price),
+                cust_name=cust_name,
+                cust_address=cust_address,
+                cust_postcode=cust_postcode,
+                cust_email=cust_email,
+                cust_cardno=cust_cardno,
+                card_expirydate=card_expirydate,
+                card_cvv=card_cvv,
+                trans_option=trans_option
+            )
+            db.session.add(new_pay)
+            db.session.commit()
+
+            for cartitem in cartitems:
+                new_order = Order(food_id=cartitem.food_id, quantity=cartitem.quantity, pay_order_no=new_pay.pay_no)
+                db.session.add(new_order)
+            db.session.commit()
+
+            db.session.query(CartItem).delete()
+            db.session.commit()
+
+            recentp = db.session.query(Pay).order_by(Pay.pay_no.desc()).first()
+            return render_template("receipt.html", recentp=recentp)
+
+@app.route('/view-orders')
+def view_orders():
+    file_name = "orders.xml"
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
+
+    # Ensure the file exists before attempting to serve it
+    if os.path.exists(file_path):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], file_name)
+    else:
+        return "No orders.xml file found.", 404
+
+@app.route('/download-orders')
+def download_orders():
+    file_name = "orders.xml"
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
+
+    # Ensure the file exists before attempting to download
+    if os.path.exists(file_path):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], file_name, as_attachment=True)
+    else:
+        return "No orders.xml file found.", 404
+
 @app.route('/menu', methods=['GET', 'POST'])
 def menu():
     food = db.session.query(Food).all()
@@ -316,6 +403,23 @@ def menu():
     price = food.food_price
     fid = food.food_id
     return render_template("menu.html", title='Menu Details', food_name=selected_menu, food_price=price, food_id=fid)
+
+@app.route('/addtocart', methods=['GET', 'POST'])
+def addtocart():
+    if request.method == 'POST':
+        if "username" in login_session:
+            food_id = request.form.get("food_id")
+            print(food_id)
+            food_name = request.form.get("food_name")
+            food_price = float(request.form.get("food_price"))
+            quantity = request.form.get("name_of_slider")
+            print(quantity)
+            total_price = float(food_price) * int(quantity)
+            cart_name = "cart" + food_id
+            new_cartitem = CartItem(cart_name=cart_name,quantity=quantity,food_id=food_id)
+            db.session.add(new_cartitem)
+            db.session.commit()
+            return redirect(url_for('welcome'))
 
 
 @app.route('/login', methods=['GET', 'POST'])

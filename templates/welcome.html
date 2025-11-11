@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 
 {% block content %}
@@ -44,11 +45,15 @@
 
     <br>
     <button><a href="{{ url_for('addfood') }}">Add Food Item</a></button>
+    <button><a href="{{ url_for('checkout') }}">Checkout</a></button>
     <button><a href="{{ url_for('logout') }}">Logout</a></button>
+   <!-- <button><a href="{{ url_for('view_orders') }}">View Orders</a></button>
+    <button><a href="{{ url_for('download_orders') }}">Download Orders</a></button> -->
 
     <script>
-        function openMenu(foodName) {
-            window.open("{{ url_for('menu', type='') }}" + foodName, "popup", "width=400,height=500,left=400,top=10");
-        }
+function openMenu(foodName) {
+    const url = "{{ url_for('menu', type='') }}" + encodeURIComponent(foodName);
+    window.open(url, "popup", "width=400,height=500,left=400,top=10");
+}
     </script>
 {% endblock %}
